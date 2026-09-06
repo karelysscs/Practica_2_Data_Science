@@ -1,0 +1,94 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{siunitx}
+\usepackage{hyperref}
+\usepackage{caption}
+
+\title{Accesibilidad vial a servicios de emergencia resolutivos en Tumbes,
+Apur\'imac y Amazonas: an\'alisis geoespacial y m\'etricas de cobertura}
+\author{Karelys S. Collazos \\ \small Data Science with Python --- HW\_02\_202602}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+% 120-180 palabras: problema, datos, m\'etodo, hallazgo principal, implicancia.
+Resumen pendiente.
+\end{abstract}
+
+\section{Introducci\'on y planteamiento del problema}
+% La "hora dorada"; brecha entre distancia euclidiana y tiempo vial real;
+% establecimientos resolutivos (II-1+). Pregunta y objetivos.
+
+\section{Datos}
+\subsection{Fuentes}
+% RENIPRESS, centros poblados MINEDU/INEI, red vial OSM, l\'imites INEI.
+\subsection{Validaci\'on y control de calidad}
+% Reglas de detecci\'on (Cuadro~\ref{tab:calidad}); pol\'itica de no descartar
+% en silencio; tasas de error por fuente.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Reglas de validaci\'on y registros marcados por fuente.}
+  \label{tab:calidad}
+  \begin{tabular}{lrr}
+    \toprule
+    Regla & Oferta & Demanda \\
+    \midrule
+    coord\_faltante      & -- & -- \\
+    fuera\_de\_peru       & -- & -- \\
+    latlon\_invertida    & -- & -- \\
+    duplicado\_codigo    & -- & -- \\
+    duplicado\_espacial  & -- & -- \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Metodolog\'ia}
+\subsection{Ruteo y matriz origen--destino}
+% Snap a la red; OSRM /table; cach\'e; fallback haversine
+% ($t = d \cdot \text{detour} / v$); perfiles conduciendo vs.\ caminando.
+\subsection{M\'etricas}
+% Tiempo m\'inimo de acceso; bandas 30/60/120; Gini ponderado por poblaci\'on:
+\begin{equation}
+  G = 1 - \sum_{i=1}^{n} (S_{i} + S_{i-1})(w_i),\qquad
+  S_i = \frac{\sum_{k\le i} v_k w_k}{\sum_k v_k w_k}.
+\end{equation}
+
+\section{Resultados}
+% >= 3 figuras y >= 3 cuadros.
+\begin{figure}[htbp]
+  \centering
+  % \includegraphics[width=.8\linewidth]{../data/outputs/fig_choropleth.png}
+  \caption{Tiempo de acceso ponderado por distrito.}
+  \label{fig:choropleth}
+\end{figure}
+
+\section{Discusi\'on}
+% Contraste costa/sierra/selva; urbano--rural; sensibilidad al motor de ruteo.
+
+\section{Limitaciones}
+% Cobertura OSM en Amazonas; est\'atico (sin tr\'afico ni estacionalidad);
+% poblaci\'on de CCPP desactualizada; fallback como cota inferior.
+
+\section{Conclusiones}
+
+\section*{Reproducibilidad}
+C\'odigo y datos: \url{https://github.com/karelysscs/Practica_2_Data_Science}.
+Ejecutar \texttt{python -m src.phase1\_data}, \texttt{phase2\_routing},
+\texttt{phase3\_metrics} y \texttt{streamlit run app.py}.
+
+\begin{thebibliography}{9}
+\bibitem{osrm} Luxen, D. \& Vetter, C. (2011). Real-time routing with OpenStreetMap data.
+\bibitem{renipress} SUSALUD. Registro Nacional de IPRESS (RENIPRESS).
+\bibitem{inei} INEI. Censos Nacionales 2017: Centros Poblados.
+\end{thebibliography}
+
+\end{document}

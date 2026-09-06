@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+.env
+
+# Datos crudos (pesados / redescargables) — se versionan solo los .gitkeep
+data/raw/*
+!data/raw/.gitkeep
+
+# Caché de ruteo (SQLite) — la MATRIZ final sí se versiona (od_matrix.parquet)
+data/processed/route_cache.sqlite
+data/processed/*.sqlite-journal
+
+# Logs
+logs/*
+!logs/.gitkeep
+
+# LaTeX (artefactos de compilación)
+report/*.aux
+report/*.log
+report/*.out
+report/*.toc
+report/*.fls
+report/*.fdb_latexmk
+report/*.synctex.gz
+report/*.bbl
+report/*.blg
+
+# SO / editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

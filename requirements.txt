@@ -1,0 +1,29 @@
+# --- Núcleo de datos ---
+numpy>=1.26
+pandas>=2.1
+pyyaml>=6.0
+
+# --- Geoespacial ---
+geopandas>=0.14
+shapely>=2.0
+pyproj>=3.6
+osmnx>=1.9
+networkx>=3.2
+
+# --- Ruteo / HTTP ---
+requests>=2.31
+tqdm>=4.66
+
+# --- Métricas / análisis ---
+scikit-learn>=1.4
+
+# --- Visualización / dashboard ---
+streamlit>=1.33
+streamlit-folium>=0.19
+folium>=0.16
+plotly>=5.20
+matplotlib>=3.8
+
+# --- E/S de formatos ---
+pyarrow>=15.0
+openpyxl>=3.1
