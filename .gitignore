@@ -12,13 +12,21 @@ env/
 data/raw/*
 !data/raw/.gitkeep
 
-# Caché de ruteo (SQLite) — la MATRIZ final sí se versiona (od_matrix.parquet)
+# Intermedios pesados de data/processed/ — solo se versiona la MATRIZ O-D final
+# (od_matrix.parquet) para que el dashboard funcione offline.
+data/processed/*.parquet
+!data/processed/od_matrix.parquet
+data/processed/*.graphml
 data/processed/route_cache.sqlite
 data/processed/*.sqlite-journal
 
 # Logs
 logs/*
 !logs/.gitkeep
+
+# Reportes de calidad: se versiona el resumen (.md y calidad_*.csv), no el
+# detalle fila-a-fila (regenerable, puede pesar varios MB)
+reports/quality/*_detalle.csv
 
 # LaTeX (artefactos de compilación)
 report/*.aux

@@ -5,13 +5,29 @@
 
 ## Reparto de trabajo
 
-| # | Dato | Lo hace | Archivo destino |
-|---|------|---------|-----------------|
-| 1 | RENIPRESS (establecimientos de salud) | **Karelys (manual)** | `data/raw/renipress.csv` |
-| 2 | Centros poblados con población y coordenadas | **Karelys (manual)** | `data/raw/centros_poblados.csv` |
-| 3 | Límites distritales (shapefile / GeoJSON) | **Claude (script)** | `data/raw/limites_distritales.gpkg` |
-| 4 | Red vial OSM de los 3 departamentos | **Claude (osmnx, automático)** | `data/processed/red_vial_*.graphml` |
-| 5 | `peru-latest.osm.pbf` (solo si montamos OSRM local) | **Opcional — Karelys** | `data/raw/peru-latest.osm.pbf` |
+| # | Dato | Estado | Archivo destino |
+|---|------|--------|-----------------|
+| 1 | RENIPRESS — Agosto 2026 (establecimientos + categoría + coords) | ✅ descargado | `data/raw/renipress.csv` |
+| 2 | SIGMED `CP_P.shp` — centros poblados (coords + altitud `Z`, **sin población**) | ✅ descargado | `data/raw/centros_poblados/CP_P.*` |
+| 3 | **Centros poblados con POBLACIÓN** (Censo 2017) | ⏳ pendiente — Karelys | `data/raw/ccpp_poblacion/` |
+| 4 | Límites distritales (shapefile / GeoJSON) | Claude (script) | `data/raw/limites_distritales.gpkg` |
+| 5 | Red vial OSM de los 3 departamentos | Claude (osmnx, automático) | caché de `osmnx` |
+| 6 | `peru-latest.osm.pbf` (solo si montamos OSRM local) | opcional — Karelys | `data/raw/peru-latest.osm.pbf` |
+
+### ⏳ Pendiente #3 — población por centro poblado
+
+El shapefile de SIGMED (#2) trae coordenadas y altitud pero **no población**, y su
+enlace al código INEI (`CPINEI`) está vacío en el 32 % de los casos. Necesitamos
+una capa de centros poblados del **Censo 2017 que incluya `POB_TOTAL`**:
+
+- **geogpsperu → «Centros Poblados - Censo 2017»**
+  <https://www.geogpsperu.com/2019/05/centros-poblados-censo-2017-shapefile_29.html>
+  Descargar **Tumbes, Apurímac y Amazonas** de la capa
+  «Centros Poblados (Urbano y Rural)» o «(Categorías)».
+- Alternativa: INEI, Directorio Nacional de Centros Poblados 2017 (son PDF por tomo).
+
+Descomprimir **todo** dentro de `data/raw/ccpp_poblacion/`. El script hace el
+*join* con #2 por código de centro poblado (`CODCP`) o por `CPINEI`.
 
 ---
 
@@ -72,8 +88,7 @@ pública de OSRM o `osmnx`, no se usa y no pasa nada.
 
 ## Checklist para Karelys
 
-- [ ] `data/raw/renipress.csv`
-- [ ] `data/raw/centros_poblados.csv`
+- [x] `data/raw/renipress.csv`
+- [x] `data/raw/centros_poblados/CP_P.*` (SIGMED)
+- [ ] `data/raw/ccpp_poblacion/` — centros poblados Censo 2017 **con población**
 - [ ] *(opcional, en segundo plano)* `data/raw/peru-latest.osm.pbf`
-
-Avísame cuando el 1 y el 2 estén en su sitio y sigo con la Fase 1 sobre datos reales.

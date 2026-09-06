@@ -1,12 +1,13 @@
 """Fase 1 — Adquisición y validación de datos (3.0 pts).
 
 Construye datasets geoespaciales validados de:
-  * demanda  -> centros poblados (población + coordenadas)
-  * oferta   -> establecimientos de salud resolutivos (RENIPRESS, cat. II-1+)
+  * OFERTA   -> establecimientos de salud resolutivos (RENIPRESS, cat. II-1+)
+  * DEMANDA  -> centros poblados (población + coordenadas)
 
 Regla de oro: **no se descartan filas en silencio**. Cada registro problemático
-se marca con una bandera y se documenta en un reporte de calidad
-(``reports/quality/*.csv`` y ``*.md``).
+se marca con banderas ``qc_*`` y se documenta en un reporte de calidad
+(``reports/quality/calidad_<fuente>.{md,csv}``). El análisis posterior filtra
+por ``qc_ok`` pero los registros marcados quedan versionados para trazabilidad.
 
 Uso:
     python -m src.phase1_data
@@ -21,27 +22,64 @@ import pandas as pd
 from src.config import CFG, department_ubigeos, get_path
 from src.utils import get_logger, haversine_m, timestamp
 
+try:  # geopandas es opcional hasta que haga falta leer shapefiles
+    import geopandas as gpd
+except ImportError:  # pragma: no cover
+    gpd = None
+
 log = get_logger("phase1")
 
 V = CFG["validation"]
 LON_MIN, LAT_MIN, LON_MAX, LAT_MAX = V["peru_bbox"]
 
+# Mapeo de columnas RENIPRESS (padrón SUSALUD) -> nombres canónicos
+RENIPRESS_MAP = {
+    "COD_IPRESS": "codigo",
+    "NOMBRE": "nombre",
+    "CLASIFICACION": "clasificacion",
+    "TIPO_ESTABLECIMIENTO": "tipo",
+    "INSTITUCION": "institucion",
+    "CATEGORIA": "categoria",
+    "ESTADO": "estado",
+    "DEPARTAMENTO": "departamento",
+    "PROVINCIA": "provincia",
+    "DISTRITO": "distrito",
+    "UBIGEO": "ubigeo",
+    "NORTE": "latitud",
+    "ESTE": "longitud",
+}
+
+# Posibles nombres de columnas en padrones de centros poblados
+# (SIGMED CP_P.shp / INEI cartografía censal / geogpsperu)
+DEMAND_ALIASES = {
+    "codigo":       ["codcp", "cod_ccpp", "codccpp", "id_ccpp", "ccpp", "codigo_ccpp", "cod_cp", "cod_cp_"],
+    "cod_inei":     ["cpinei", "codccpp_inei", "cod_ccpp_inei", "ccpp_inei", "id_ccpp_inei"],
+    "nombre":       ["nomcp", "nomccpp", "nom_ccpp", "nombre_ccpp", "nombre", "nom_cp", "centro_poblado"],
+    "poblacion":    ["poblacion", "pob_total", "pobla", "poblac", "pob2017", "pob", "cant_pob",
+                     "poblacen", "pobtotal", "pob_tot"],
+    "viviendas":    ["viviendas", "viv_total", "vivienda", "viv", "vivtotal", "total_vivi"],
+    "ubigeo":       ["ubigeo", "iddist", "cod_dist", "ubigeo_dist", "codigo_ubigeo"],
+    "latitud":      ["latitud", "lat", "y", "coord_y", "ygd", "norte"],
+    "longitud":     ["longitud", "long", "lon", "x", "coord_x", "xgd", "este"],
+    "altitud":      ["altitud", "z", "elevacion", "msnm", "altura"],
+    "departamento": ["dep", "departamento", "dpto", "nombdep", "nom_dep"],
+}
+
 
 # --------------------------------------------------------------------------- #
 # Normalización
 # --------------------------------------------------------------------------- #
-def strip_accents(text: str) -> str:
+def strip_accents(text):
     if not isinstance(text, str):
         return text
     nfkd = unicodedata.normalize("NFKD", text)
     return "".join(c for c in nfkd if not unicodedata.combining(c)).strip()
 
 
-def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
+def snake_columns(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df.columns = (
-        df.columns.str.strip()
-        .str.lower()
+        pd.Index(df.columns).astype(str).str.strip().str.lower()
         .map(strip_accents)
         .str.replace(r"[^\w]+", "_", regex=True)
         .str.strip("_")
@@ -49,174 +87,347 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def coerce_coords(df: pd.DataFrame, lat: str = "latitud", lon: str = "longitud") -> pd.DataFrame:
+def coerce_coords(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-    for col in (lat, lon):
-        df[col] = (
+    for col in ("latitud", "longitud"):
+        s = (
             df[col].astype(str)
+            .str.strip()
             .str.replace(",", ".", regex=False)
-            .str.replace(r"[^\d.\-]", "", regex=True)
+            .str.replace(r"[^\d.\-eE]", "", regex=True)
         )
-        df[col] = pd.to_numeric(df[col], errors="coerce")
+        df[col] = pd.to_numeric(s, errors="coerce")
     return df
 
 
+def detect_mojibake(series: pd.Series) -> pd.Series:
+    """True si el texto tiene el carácter de reemplazo U+FFFD o secuencias
+    típicas de doble codificación (Ã, Â seguidas de símbolo)."""
+    s = series.fillna("").astype(str)
+    return s.str.contains("�", regex=False) | s.str.contains(r"Ã.|Â.| Â", regex=True)
+
+
 # --------------------------------------------------------------------------- #
-# Reglas de validación -> devuelven una Serie booleana (True = problema)
+# Reglas de validación -> Serie booleana (True = problema)
 # --------------------------------------------------------------------------- #
-def flag_missing_coords(df: pd.DataFrame) -> pd.Series:
+def flag_missing_coords(df):
     return df["latitud"].isna() | df["longitud"].isna()
 
 
-def flag_zero_island(df: pd.DataFrame) -> pd.Series:
-    """(0, 0) o coordenadas casi nulas: error clásico de captura."""
+def flag_zero_island(df):
     return (df["latitud"].abs() < 0.01) & (df["longitud"].abs() < 0.01)
 
 
-def flag_out_of_peru(df: pd.DataFrame) -> pd.Series:
-    inside = (
-        df["longitud"].between(LON_MIN, LON_MAX)
-        & df["latitud"].between(LAT_MIN, LAT_MAX)
-    )
+def flag_out_of_peru(df):
+    inside = df["longitud"].between(LON_MIN, LON_MAX) & df["latitud"].between(LAT_MIN, LAT_MAX)
     return ~inside & df["latitud"].notna() & df["longitud"].notna()
 
 
-def flag_swapped_latlon(df: pd.DataFrame) -> pd.Series:
-    """lat/long intercambiadas: lat fuera de rango pero válida si se invierte."""
-    bad = ~df["latitud"].between(LAT_MIN, LAT_MAX)
+def flag_swapped_latlon(df):
+    bad = ~df["latitud"].between(LAT_MIN, LAT_MAX) & df["latitud"].notna()
     fixable = df["longitud"].between(LAT_MIN, LAT_MAX) & df["latitud"].between(LON_MIN, LON_MAX)
     return bad & fixable
 
 
-def flag_wrong_department(df: pd.DataFrame, ubigeo_col: str) -> pd.Series:
-    """UBIGEO fuera de los departamentos del estudio."""
+def flag_wrong_department(df):
     valid = set(department_ubigeos().values())
-    dd = df[ubigeo_col].astype(str).str.zfill(6).str[:2]
+    dd = df["ubigeo"].astype(str).str.replace(r"\D", "", regex=True).str.zfill(6).str[:2]
     return ~dd.isin(valid)
 
 
-def flag_duplicates_by_code(df: pd.DataFrame, code_col: str) -> pd.Series:
-    return df.duplicated(subset=[code_col], keep=False) & df[code_col].notna()
+def flag_dup_code(df):
+    return df["codigo"].duplicated(keep=False) & df["codigo"].notna()
 
 
-def flag_spatial_duplicates(df: pd.DataFrame, thresh_m: float | None = None) -> pd.Series:
-    """Marca pares de puntos a menos de ``thresh_m`` (comparación O(n^2) simple;
-    los datasets por 3 departamentos son suficientemente chicos)."""
+def flag_spatial_duplicates(df, thresh_m=None):
+    """Pares de puntos a < thresh_m (comparación O(n^2); datasets por 3 dptos.
+    son chicos). Solo compara dentro del mismo distrito para acotar."""
     thresh_m = thresh_m or V["duplicate_distance_m"]
     flags = pd.Series(False, index=df.index)
     sub = df.dropna(subset=["latitud", "longitud"])
-    rows = list(sub.itertuples())
-    for i in range(len(rows)):
-        for j in range(i + 1, len(rows)):
-            d = haversine_m(rows[i].longitud, rows[i].latitud,
-                            rows[j].longitud, rows[j].latitud)
-            if d <= thresh_m:
-                flags.at[rows[i].Index] = True
-                flags.at[rows[j].Index] = True
+    for _, grp in sub.groupby(sub["ubigeo"].astype(str).str[:6]):
+        rows = list(grp.itertuples())
+        for i in range(len(rows)):
+            for j in range(i + 1, len(rows)):
+                if haversine_m(rows[i].longitud, rows[i].latitud,
+                               rows[j].longitud, rows[j].latitud) <= thresh_m:
+                    flags.at[rows[i].Index] = True
+                    flags.at[rows[j].Index] = True
     return flags
 
 
+def flag_encoding(df):
+    text_cols = [c for c in ("nombre", "departamento", "provincia", "distrito") if c in df.columns]
+    out = pd.Series(False, index=df.index)
+    for c in text_cols:
+        out |= detect_mojibake(df[c])
+    return out
+
+
 # --------------------------------------------------------------------------- #
-# Orquestación
+# Orquestación de validación
 # --------------------------------------------------------------------------- #
-def validate(df: pd.DataFrame, *, code_col: str, ubigeo_col: str, kind: str) -> pd.DataFrame:
+def validate(df: pd.DataFrame, *, kind: str, extra_checks: dict | None = None) -> pd.DataFrame:
     df = df.copy()
     checks = {
         "coord_faltante": flag_missing_coords(df),
         "isla_cero": flag_zero_island(df),
         "fuera_de_peru": flag_out_of_peru(df),
         "latlon_invertida": flag_swapped_latlon(df),
-        "depto_fuera_ambito": flag_wrong_department(df, ubigeo_col),
-        "duplicado_codigo": flag_duplicates_by_code(df, code_col),
+        "depto_fuera_ambito": flag_wrong_department(df),
+        "duplicado_codigo": flag_dup_code(df),
         "duplicado_espacial": flag_spatial_duplicates(df),
+        "problema_encoding": flag_encoding(df),
     }
+    if extra_checks:
+        checks.update(extra_checks)
     for name, mask in checks.items():
-        df[f"qc_{name}"] = mask.fillna(False)
+        df[f"qc_{name}"] = mask.reindex(df.index).fillna(False).astype(bool)
     qc_cols = [c for c in df.columns if c.startswith("qc_")]
     df["qc_ok"] = ~df[qc_cols].any(axis=1)
     _write_quality_report(df, qc_cols, kind)
     return df
 
 
-def _write_quality_report(df: pd.DataFrame, qc_cols: list[str], kind: str) -> None:
+def _write_quality_report(df, qc_cols, kind):
     out = get_path("quality_reports")
-    resumen = (
-        df[qc_cols].sum().sort_values(ascending=False).rename("registros").to_frame()
-    )
-    resumen["porcentaje"] = (resumen["registros"] / len(df) * 100).round(2)
-
+    resumen = df[qc_cols].sum().sort_values(ascending=False).rename("registros").to_frame()
+    resumen["porcentaje"] = (resumen["registros"] / max(len(df), 1) * 100).round(2)
     resumen.to_csv(out / f"calidad_{kind}.csv")
     df.loc[~df["qc_ok"]].to_csv(out / f"calidad_{kind}_detalle.csv", index=False)
 
     md = [
-        f"# Reporte de calidad — {kind}",
-        "",
-        f"_Generado: {timestamp()}_",
-        "",
+        f"# Reporte de calidad — {kind}", "",
+        f"_Generado: {timestamp()}_", "",
         f"- Registros totales: **{len(df)}**",
-        f"- Registros sin problemas (`qc_ok`): **{int(df['qc_ok'].sum())}** "
-        f"({df['qc_ok'].mean() * 100:.1f} %)",
-        "",
-        "| Regla | Registros | % |",
-        "|-------|-----------|---|",
+        f"- Sin problemas (`qc_ok`): **{int(df['qc_ok'].sum())}** "
+        f"({df['qc_ok'].mean() * 100:.1f} %)", "",
+        "| Regla | Registros | % |", "|---|---|---|",
     ]
     for regla, row in resumen.iterrows():
         md.append(f"| `{regla}` | {int(row['registros'])} | {row['porcentaje']} |")
-    md += ["", "> Los registros marcados **no se eliminan**: se conservan con sus",
-           "> banderas `qc_*` para trazabilidad y se excluyen del análisis vía `qc_ok`."]
+    md += ["", "> Los registros marcados **no se eliminan**: conservan sus banderas",
+           "> `qc_*` y se excluyen del análisis mediante `qc_ok`."]
     (out / f"calidad_{kind}.md").write_text("\n".join(md), encoding="utf-8")
-    log.info("Reporte de calidad '%s' escrito en %s", kind, out)
+    log.info("Reporte de calidad '%s' -> %s", kind, out)
 
 
 # --------------------------------------------------------------------------- #
-# Carga de fuentes
+# Carga: OFERTA (RENIPRESS)
 # --------------------------------------------------------------------------- #
 def load_facilities() -> pd.DataFrame:
     path = get_path("raw") / "renipress.csv"
     if not path.exists():
-        raise FileNotFoundError(
-            f"Falta {path}. Ver docs/DATA_SOURCES.md (descarga manual de RENIPRESS)."
-        )
-    df = pd.read_csv(path, dtype=str, encoding="latin-1", on_bad_lines="skip")
-    df = normalize_columns(df)
+        raise FileNotFoundError(f"Falta {path}. Ver docs/DATA_SOURCES.md")
+
+    raw = pd.read_csv(path, dtype=str, encoding="utf-8-sig", sep=";")
+    raw.columns = [c.strip() for c in raw.columns]
+    df = raw.rename(columns=RENIPRESS_MAP)[list(RENIPRESS_MAP.values())].copy()
+
+    df["codigo"] = df["codigo"].str.strip().str.zfill(8)
+    df["categoria"] = df["categoria"].str.strip().str.upper()
+    df["estado"] = df["estado"].str.strip().str.upper()
+    df["ubigeo"] = df["ubigeo"].str.strip().str.zfill(6)
     df = coerce_coords(df)
-    # TODO: mapear nombres reales de columnas de RENIPRESS -> canónicos
-    #   codigo_renaes, nombre, categoria, ubigeo
-    cats = set(CFG["facilities"]["resolutive_categories"])
-    if "categoria" in df.columns:
-        df["es_resolutivo"] = df["categoria"].str.upper().str.strip().isin(cats)
+
+    cats = {c.upper() for c in CFG["facilities"]["resolutive_categories"]}
+    df["es_activo"] = df["estado"].eq("ACTIVO")
+    df["es_resolutivo"] = df["categoria"].isin(cats)
+    df["categoria_invalida"] = ~df["categoria"].str.match(r"^(I{1,3})-(\d|E)$").fillna(False)
+
+    # ámbito de estudio (los 3 departamentos): se valida SOLO el subconjunto
+    deps = {strip_accents(d).upper() for d in CFG["departments"].values()}
+    df["en_ambito"] = df["departamento"].map(strip_accents).str.upper().isin(deps)
+    n_nacional = len(df)
+    df = df.loc[df["en_ambito"]].copy()
+
+    log.info("RENIPRESS: %d filas nacionales; %d en ámbito (%s); %d activas resolutivas",
+             n_nacional, len(df), ", ".join(sorted(deps)),
+             int((df["es_activo"] & df["es_resolutivo"]).sum()))
+
+    extra = {
+        "no_activo": ~df["es_activo"],
+        "categoria_invalida": df["categoria_invalida"],
+    }
+    df = validate(df, kind="oferta", extra_checks=extra)
+
+    # 'qc_ok' para oferta = válido geográficamente Y activo Y categoría resolutiva
+    df["apto_oferta"] = (
+        df["qc_ok"] | (~df[["qc_coord_faltante", "qc_isla_cero", "qc_fuera_de_peru",
+                            "qc_duplicado_codigo"]].any(axis=1))
+    ) & df["es_activo"] & df["es_resolutivo"] & df["en_ambito"]
     return df
+
+
+# --------------------------------------------------------------------------- #
+# Carga: DEMANDA (centros poblados)
+# --------------------------------------------------------------------------- #
+_VECTOR_EXT = (".shp", ".gpkg", ".geojson", ".json")
+
+
+def _find_demand_file() -> Path:
+    """Busca el padrón principal de CCPP: primero shapefiles/vectores, luego CSV.
+    Ignora la carpeta de población auxiliar (``ccpp_poblacion``)."""
+    raw = get_path("raw")
+    prefer = ["centros_poblados", "ccpp", "poblado"]
+    candidates: list[Path] = []
+    for ext in _VECTOR_EXT + (".csv",):
+        candidates += [p for p in raw.rglob(f"*{ext}") if "ccpp_poblacion" not in p.parts]
+    if not candidates:
+        raise FileNotFoundError(
+            "No se encontró el padrón de centros poblados en data/raw/. "
+            "Ver docs/DATA_SOURCES.md"
+        )
+    candidates.sort(key=lambda p: (
+        _VECTOR_EXT.index(p.suffix.lower()) if p.suffix.lower() in _VECTOR_EXT else 9,
+        0 if any(k in p.stem.lower() for k in prefer) else 1,
+    ))
+    return candidates[0]
+
+
+def _read_any(path: Path) -> pd.DataFrame:
+    """Lee shapefile/GeoPackage/GeoJSON (geopandas) o CSV (pandas)."""
+    if path.suffix.lower() in _VECTOR_EXT:
+        if gpd is None:
+            raise ImportError("Se necesita geopandas para leer " + path.suffix)
+        g = gpd.read_file(path)
+        if g.crs and g.crs.to_epsg() != 4326:
+            g = g.to_crs(4326)
+        pts = g.geometry.representative_point()
+        out = pd.DataFrame(g.drop(columns=g.geometry.name))
+        out["_geom_lon"], out["_geom_lat"] = pts.x.values, pts.y.values
+        return out
+    for enc in ("utf-8-sig", "latin-1"):
+        try:
+            return pd.read_csv(path, dtype=str, encoding=enc, sep=None, engine="python")
+        except (UnicodeDecodeError, pd.errors.ParserError):
+            continue
+    raise ValueError(f"No se pudo leer {path}")
+
+
+def _resolve_aliases(df: pd.DataFrame) -> pd.DataFrame:
+    ren: dict[str, str] = {}
+    for canonical, aliases in DEMAND_ALIASES.items():
+        if canonical in df.columns:
+            continue
+        for a in aliases:
+            if a in df.columns and a not in ren:
+                ren[a] = canonical
+                break
+    return df.rename(columns=ren)
+
+
+def _load_population_lookup() -> pd.DataFrame | None:
+    """Lee un padrón auxiliar con población en data/raw/ccpp_poblacion/ y
+    devuelve [codigo, cod_inei, poblacion, viviendas] para hacer join."""
+    folder = get_path("raw") / "ccpp_poblacion"
+    if not folder.exists():
+        return None
+    files = [p for ext in _VECTOR_EXT + (".csv", ".xlsx")
+             for p in folder.rglob(f"*{ext}")]
+    if not files:
+        return None
+    frames = []
+    for f in files:
+        try:
+            raw = _read_any(f) if f.suffix.lower() != ".xlsx" else pd.read_excel(f, dtype=str)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("No se pudo leer población %s: %s", f.name, exc)
+            continue
+        d = _resolve_aliases(snake_columns(raw))
+        keep = [c for c in ("codigo", "cod_inei", "poblacion", "viviendas") if c in d.columns]
+        if "poblacion" in keep and ({"codigo", "cod_inei"} & set(keep)):
+            frames.append(d[keep])
+    if not frames:
+        return None
+    lut = pd.concat(frames, ignore_index=True).drop_duplicates()
+    lut["poblacion"] = pd.to_numeric(
+        lut["poblacion"].astype(str).str.replace(r"[^\d.]", "", regex=True), errors="coerce")
+    log.info("Lookup de población: %d filas desde %s", len(lut), folder)
+    return lut
 
 
 def load_demand() -> pd.DataFrame:
-    path = get_path("raw") / "centros_poblados.csv"
-    if not path.exists():
-        raise FileNotFoundError(
-            f"Falta {path}. Ver docs/DATA_SOURCES.md (descarga manual de CCPP)."
-        )
-    df = pd.read_csv(path, dtype=str, encoding="latin-1", on_bad_lines="skip")
-    df = normalize_columns(df)
+    path = _find_demand_file()
+    log.info("Padrón de CCPP: %s", path)
+    df = _resolve_aliases(snake_columns(_read_any(path)))
+
+    # coordenadas: usar columnas explícitas o, si no hay, las de la geometría
+    if "latitud" not in df.columns and "_geom_lat" in df.columns:
+        df["latitud"], df["longitud"] = df["_geom_lat"], df["_geom_lon"]
     df = coerce_coords(df)
-    if "poblacion" in df.columns:
-        df["poblacion"] = pd.to_numeric(df["poblacion"], errors="coerce")
-        thr = CFG["demand"]["urban_population_threshold"]
-        df["ambito"] = df["poblacion"].apply(
-            lambda p: "urbano" if pd.notna(p) and p >= thr else "rural"
-        )
+
+    for col in ("codigo", "cod_inei"):
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.strip().str.replace(r"\.0$", "", regex=True)
+    if "codigo" not in df.columns:
+        df["codigo"] = pd.NA
+    if "altitud" in df.columns:
+        df["altitud"] = pd.to_numeric(df["altitud"], errors="coerce")
+
+    # --- población: de la propia capa o vía join con padrón auxiliar ---
+    pop_source = "capa principal"
+    if "poblacion" not in df.columns:
+        lut = _load_population_lookup()
+        if lut is not None:
+            key = "cod_inei" if ("cod_inei" in df.columns and "cod_inei" in lut.columns) else "codigo"
+            df = df.merge(lut.dropna(subset=[key]).drop_duplicates(key),
+                          on=key, how="left", suffixes=("", "_lut"))
+            pop_source = f"join auxiliar por {key}"
+        else:
+            log.warning("Sin población: falta data/raw/ccpp_poblacion/. "
+                        "Ver docs/DATA_SOURCES.md")
+            df["poblacion"] = pd.NA
+    df["poblacion"] = pd.to_numeric(
+        df["poblacion"].astype(str).str.replace(r"[^\d.]", "", regex=True), errors="coerce")
+    matched = df["poblacion"].notna().mean() * 100
+    log.info("Población (%s): %.1f%% de CCPP con dato", pop_source, matched)
+
+    thr = CFG["demand"]["urban_population_threshold"]
+    df["ambito_uro"] = df["poblacion"].apply(
+        lambda p: "urbano" if pd.notna(p) and p >= thr else "rural")
+
+    deps = {strip_accents(d).upper() for d in CFG["departments"].values()}
+    if "departamento" in df.columns:
+        df["en_ambito"] = df["departamento"].map(strip_accents).str.upper().isin(deps)
+    else:
+        valid = set(department_ubigeos().values())
+        df["en_ambito"] = df["ubigeo"].astype(str).str.zfill(6).str[:2].isin(valid)
+
+    n_nacional = len(df)
+    df = df.loc[df["en_ambito"]].copy()
+    log.info("CCPP: %d nacionales; %d en ámbito", n_nacional, len(df))
+
+    extra = {
+        "poblacion_faltante": df["poblacion"].isna(),
+        "poblacion_no_positiva": df["poblacion"].fillna(1) < CFG["demand"]["min_population"],
+    }
+    df = validate(df, kind="demanda", extra_checks=extra)
+    # para demanda, la falta de población no descalifica el punto geográficamente;
+    # apto_demanda exige geometría válida + ámbito (la población se imputa en Fase 3)
+    geo_bad = df[["qc_coord_faltante", "qc_isla_cero", "qc_fuera_de_peru",
+                  "qc_latlon_invertida", "qc_depto_fuera_ambito"]].any(axis=1)
+    df["apto_demanda"] = ~geo_bad & df["en_ambito"]
     return df
 
 
+# --------------------------------------------------------------------------- #
 def run() -> None:
     log.info("=== Fase 1: adquisición y validación ===")
-    fac = load_facilities()
-    fac = validate(fac, code_col="codigo_renaes", ubigeo_col="ubigeo", kind="oferta")
-    dem = load_demand()
-    dem = validate(dem, code_col="nombre_ccpp", ubigeo_col="ubigeo", kind="demanda")
-
     proc = get_path("processed")
+
+    fac = load_facilities()
     fac.to_parquet(proc / "facilities_validated.parquet", index=False)
-    dem.to_parquet(proc / "demand_validated.parquet", index=False)
-    log.info("Fase 1 completa: %d establecimientos, %d centros poblados", len(fac), len(dem))
+    log.info("Oferta apta (resolutiva, activa, en ámbito): %d", int(fac["apto_oferta"].sum()))
+
+    try:
+        dem = load_demand()
+        dem.to_parquet(proc / "demand_validated.parquet", index=False)
+        log.info("Demanda apta (CCPP válidos en ámbito): %d", int(dem["apto_demanda"].sum()))
+    except FileNotFoundError as exc:
+        log.warning("Demanda pendiente: %s", exc)
+
+    log.info("Fase 1 completa. Reportes en %s", get_path("quality_reports"))
 
 
 if __name__ == "__main__":
