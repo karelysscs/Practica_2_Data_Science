@@ -39,6 +39,9 @@ report/*.synctex.gz
 report/*.bbl
 report/*.blg
 
+# Caché de osmnx / Overpass
+cache/
+
 # SO / editores
 .DS_Store
 Thumbs.db

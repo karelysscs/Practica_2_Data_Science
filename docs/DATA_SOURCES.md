@@ -10,9 +10,15 @@
 | 1 | RENIPRESS — Agosto 2026 (establecimientos + categoría + coords) | ✅ descargado | `data/raw/renipress.csv` |
 | 2 | SIGMED `CP_P.shp` — centros poblados (coords + altitud `Z`, **sin población**) | ✅ descargado | `data/raw/centros_poblados/CP_P.*` |
 | 3 | **Centros poblados con POBLACIÓN** (Censo 2017) | ⏳ pendiente — Karelys | `data/raw/ccpp_poblacion/` |
-| 4 | Límites distritales (shapefile / GeoJSON) | Claude (script) | `data/raw/limites_distritales.gpkg` |
-| 5 | Red vial OSM de los 3 departamentos | Claude (osmnx, automático) | caché de `osmnx` |
-| 6 | `peru-latest.osm.pbf` (solo si montamos OSRM local) | opcional — Karelys | `data/raw/peru-latest.osm.pbf` |
+| 4 | Límites distritales (GeoJSON, límites INEI) | ✅ automático — `phase3` lo descarga | `data/raw/peru_distritos.geojson` |
+| 5 | Ruteo: **OSRM público** (`router.project-osrm.org`) | ✅ sin descarga | caché `data/processed/route_cache.sqlite` |
+| 6 | `peru-latest.osm.pbf` (solo motor `osmnx` local) | opcional — no necesario | `data/raw/peru-latest.osm.pbf` |
+
+> **Nota de la Fase 2:** el motor local `osmnx` (grafo de Overpass para los 3
+> departamentos) se descartó: la descarga se subdivide en ~168 subconsultas y
+> Overpass agota el tiempo de espera. Se usa OSRM público, que cubre Perú con
+> ruta real en el 100 % de los pares y caché reanudable. El código del motor
+> `osmnx` queda en `src/phase2_routing.py` como alternativa documentada.
 
 ### ⏳ Pendiente #3 — población por centro poblado
 

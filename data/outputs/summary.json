@@ -1,0 +1,46 @@
+{
+  "perfil_primario": "driving",
+  "poblacion_ponderada": false,
+  "n_ccpp": 11080,
+  "n_establecimientos_resolutivos": 24,
+  "poblacion_total": null,
+  "acceso_min_medio_ponderado": 76.01,
+  "acceso_min_mediana": 65.41,
+  "pct_poblacion_fuera_hora_dorada": 55.94,
+  "gini_acceso": 0.3861,
+  "cobertura_bandas_pct": {
+    "<= 30 min": 18.53,
+    "<= 60 min": 44.06,
+    "<= 120 min": 84.87,
+    "> 120 min": 15.13
+  },
+  "por_departamento": {
+    "AMAZONAS": {
+      "n_ccpp": 4217,
+      "acceso_min_medio": 83.63,
+      "pct_fuera_hora_dorada": 54.85
+    },
+    "APURIMAC": {
+      "n_ccpp": 6523,
+      "acceso_min_medio": 72.74,
+      "pct_fuera_hora_dorada": 58.13
+    },
+    "TUMBES": {
+      "n_ccpp": 340,
+      "acceso_min_medio": 44.31,
+      "pct_fuera_hora_dorada": 27.35
+    }
+  },
+  "urbano_rural": {
+    "rural": 76.01
+  },
+  "acceso_por_tercil_altitud": {
+    "bajo": 77.52,
+    "medio": 63.51,
+    "alto": 87.0
+  },
+  "driving_vs_walking_min_medio": {
+    "driving": 76.01,
+    "walking": 911.85
+  }
+}
