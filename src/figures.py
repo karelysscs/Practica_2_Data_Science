@@ -114,49 +114,69 @@ def build() -> None:
         fig.savefig(figs / "fig_choropleth.png", bbox_inches="tight"); plt.close(fig)
 
     # --- Tablas .tex ------------------------------------------------- #
+    def _clean(s: str) -> str:
+        s = s.replace("<=", r"$\le$").replace(">=", r"$\ge$").replace("> ", r"$>$ ")
+        s = s.replace("_", r"\_")
+        # escapar % solo si no está ya escapado
+        return s.replace(r"\%", "%").replace("%", r"\%")
+
     def _tex(df: pd.DataFrame, name: str, caption: str, label: str, float_fmt="%.1f"):
-        body = df.to_latex(index=False, escape=True, float_format=float_fmt,
-                           column_format="l" + "r" * (df.shape[1] - 1))
+        d = df.copy()
+        d.columns = [_clean(str(c)) for c in d.columns]
+        for c in d.columns:
+            if not pd.api.types.is_numeric_dtype(d[c]):
+                d[c] = d[c].map(lambda x: _clean(str(x)))
+        body = d.to_latex(index=False, escape=False, float_format=float_fmt,
+                          column_format="l" + "r" * (d.shape[1] - 1))
         (tabs / name).write_text(
-            f"% auto-generado por src/figures.py\n"
+            "% auto-generado por src/figures.py — no editar a mano\n"
             f"\\begin{{table}}[htbp]\\centering\n\\caption{{{caption}}}\\label{{{label}}}\n"
             f"{body}\\end{{table}}\n", encoding="utf-8")
 
-    cov = pd.DataFrame({"Banda": list(bands), "% población": list(bands.values())})
+    cov = pd.DataFrame({"Banda": list(bands), "Poblacion (\\%)": list(bands.values())})
     _tex(cov, "tab_cobertura.tex", "Cobertura poblacional por banda de tiempo de acceso "
-         "(perfil conducción).", "tab:cobertura")
+         "(perfil conducci\\'on).", "tab:cobertura")
 
     dep = pd.DataFrame([
         {"Departamento": k, "CCPP": v["n_ccpp"],
          "Acceso medio (min)": v["acceso_min_medio"],
-         "Fuera hora dorada (%)": v["pct_fuera_hora_dorada"]}
+         "Fuera hora dorada (\\%)": v["pct_fuera_hora_dorada"]}
         for k, v in summary["por_departamento"].items()
     ])
     _tex(dep, "tab_departamento.tex",
-         "Resumen por departamento: tiempo medio de acceso ponderado y población "
-         "fuera de la hora dorada.", "tab:departamento")
+         "Resumen por departamento: tiempo medio de acceso ponderado por poblaci\\'on "
+         "y poblaci\\'on fuera de la hora dorada.", "tab:departamento")
 
     peores = (dist.sort_values("acceso_min_ponderado", ascending=False)
-              .head(10)[["ubigeo_distrito", dep_col, "n_ccpp",
-                         "acceso_min_ponderado", "pct_fuera_hora_dorada", "gini_acceso"]]
+              .head(10)[["ubigeo_distrito", dep_col, "n_ccpp", "acceso_min_ponderado",
+                         "pct_fuera_hora_dorada", "gini_acceso", "pct_pobreza_total"]]
               .rename(columns={"ubigeo_distrito": "UBIGEO", dep_col: "Depto.",
                                "n_ccpp": "CCPP", "acceso_min_ponderado": "Acceso (min)",
-                               "pct_fuera_hora_dorada": "Fuera HD (%)",
-                               "gini_acceso": "Gini"}))
+                               "pct_fuera_hora_dorada": "Fuera HD (\\%)",
+                               "gini_acceso": "Gini", "pct_pobreza_total": "Pobreza (\\%)"}))
     _tex(peores, "tab_distritos_peores.tex",
-         "Diez distritos con mayor tiempo de acceso ponderado por población.",
+         "Diez distritos con mayor tiempo de acceso ponderado por poblaci\\'on.",
          "tab:peores", float_fmt="%.2f")
 
     for k in ("oferta", "demanda"):
         csv = get_path("quality_reports") / f"calidad_{k}.csv"
         if csv.exists():
             q = pd.read_csv(csv)
-            q.columns = ["Regla", "Registros", "%"]
+            q.columns = ["Regla", "Registros", "\\%"]
             _tex(q, f"tab_calidad_{k}.tex",
-                 f"Reglas de validación y registros marcados — {k}.", f"tab:calidad-{k}",
+                 f"Reglas de validaci\\'on y registros marcados --- {k}.", f"tab:calidad-{k}",
                  float_fmt="%.2f")
 
-    log.info("Figuras -> %s | Tablas -> %s", figs, tabs)
+    # --- copiar a report/ para que el .tex sea autocontenido (Overleaf) --- #
+    import shutil
+    from src.config import ROOT
+    for sub, src_dir in (("figs", figs), ("tabs", tabs)):
+        dst = ROOT / "report" / sub
+        dst.mkdir(parents=True, exist_ok=True)
+        for f in src_dir.iterdir():
+            shutil.copy2(f, dst / f.name)
+
+    log.info("Figuras/tablas -> %s, %s  y copiadas a report/", figs, tabs)
 
 
 if __name__ == "__main__":

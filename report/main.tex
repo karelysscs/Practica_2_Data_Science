@@ -12,8 +12,12 @@
 \usepackage{caption}
 \captionsetup{font=small,labelfont=bf}
 
-\graphicspath{{../data/outputs/figs/}}
-\newcommand{\tab}[1]{\input{../data/outputs/tabs/#1}}
+\sisetup{output-decimal-marker={,},group-separator={\,},group-minimum-digits=4}
+
+% Las figuras y tablas se copian a report/figs y report/tabs por src/figures.py,
+% de modo que esta carpeta es autocontenida (subir tal cual a Overleaf).
+\graphicspath{{figs/}{../data/outputs/figs/}}
+\newcommand{\tab}[1]{\InputIfFileExists{tabs/#1}{}{\input{../data/outputs/tabs/#1}}}
 
 \title{\textbf{Accesibilidad vial a servicios de emergencia resolutivos\\
 en Lambayeque, Apur\'imac y Amazonas}\\[0.3em]
@@ -36,10 +40,10 @@ resolutiva en los primeros 60 minutos. Este trabajo estima, para
 (categor\'ia II-1 o superior). Se construye una matriz origen--destino de
 \num{342} mil pares con OSRM, se ponderan los indicadores por poblaci\'on del
 Censo 2017 y se analiza la cobertura, la desigualdad (Gini) y su relaci\'on con
-altitud y pobreza distrital. \textbf{Resultado principal:} cerca del
-\SI{24}{\percent} de la poblaci\'on queda fuera de la hora dorada, con un Gini de
-acceso de \num{0.62} y un gradiente claro con la pobreza: el cuartil de
-distritos m\'as pobres tarda del orden de seis veces m\'as que el menos pobre.
+altitud y pobreza distrital. \textbf{Resultado principal:} el
+\SI{16.6}{\percent} de la poblaci\'on queda fuera de la hora dorada, con un Gini
+de acceso de \num{0.66} y un gradiente claro con la pobreza: el cuartil de
+distritos m\'as pobres tarda del orden de siete veces m\'as que el menos pobre.
 \end{abstract}
 
 \section{Introducci\'on y planteamiento del problema}
@@ -98,7 +102,7 @@ or\'igenes y los establecimientos resolutivos. El \SI{100}{\percent} de los pare
 obtuvo ruta real; para pares sin ruta se prev\'e el \emph{fallback}
 $t = d_{\text{haversine}}\cdot \kappa / v$ con factor de rodeo $\kappa=1{,}3$.
 El perfil \emph{caminando} se estima a partir de la distancia vial a
-\SI{4.5}{\km\per\hour} (el servidor p\'ublico de OSRM no expone perfil peatonal),
+\num{4.5}~km/h (el servidor p\'ublico de OSRM no expone perfil peatonal),
 y se reporta como cota comparativa.
 
 Se consider\'o un motor alternativo con grafo local (\texttt{osmnx} +
@@ -122,10 +126,11 @@ $t_i=\min_j t_{ij}$ al conjunto de establecimientos $j$. Con poblaci\'on $w_i$:
         altitud y por cuartil de pobreza distrital; correlaci\'on de $t_i$ con
         \% de pobreza e IDH.
 \end{itemize}
-La poblaci\'on de los centros poblados sin dato (caso Tumbes, no incluido) se
-imputar\'ia repartiendo el total distrital seg\'un la categor\'ia del centro
-poblado; en el \'ambito final la imputaci\'on afecta al
-\SI{0}{\percent} de la poblaci\'on.
+El pipeline incluye una rutina de imputaci\'on para centros poblados sin
+poblaci\'on (reparto del total distrital seg\'un la categor\'ia del centro
+poblado), pensada para el caso Tumbes; con el \'ambito final (Lambayeque,
+Apur\'imac, Amazonas) todos los centros poblados traen poblaci\'on del Censo
+2017 y la imputaci\'on no se activa.
 
 \section{Resultados}
 
@@ -170,22 +175,22 @@ fuente: \texttt{data/outputs/summary.json}).
   \item Poblaci\'on del \'ambito: \num{1982403} habitantes en \num{8781} centros
         poblados; \num{39} establecimientos resolutivos.
   \item \textbf{Fuera de la hora dorada: \SI{16.6}{\percent}} de la poblaci\'on
-        (\SI{4.1}{\percent} a m\'as de 120 min). Cobertura acumulada:
-        \SI{69.4}{\percent} a \SI{30}{min}, \SI{83.4}{\percent} a \SI{60}{min}.
-  \item Tiempo medio ponderado \SI{30.9}{min}; mediana de centros poblados
-        \SI{63.8}{min}: la poblaci\'on se concentra cerca de los hospitales,
+        (\SI{4.1}{\percent} a m\'as de \num{120}~min). Cobertura acumulada:
+        \SI{69.4}{\percent} a \num{30}~min, \SI{83.4}{\percent} a \num{60}~min.
+  \item Tiempo medio ponderado \num{30.9}~min; mediana de centros poblados
+        \num{63.8}~min: la poblaci\'on se concentra cerca de los hospitales,
         pero la mayor\'ia de localidades peque\~nas queda lejos.
   \item \textbf{Gini de acceso: \num{0.66}}.
-  \item Urbano vs rural: \SI{11.4}{min} vs \SI{62.9}{min}.
-  \item Por departamento: Lambayeque \SI{19.5}{min} (\SI{8.1}{\percent} fuera),
-        Apur\'imac \SI{35.9}{min} (\SI{25.4}{\percent}), Amazonas
-        \SI{61.3}{min} (\SI{34.2}{\percent}).
-  \item Tercil de altitud (bajo/medio/alto): \SIlist{25.2;39.9;57.4}{min}.
+  \item Urbano vs rural: \num{11.4}~min vs \num{62.9}~min.
+  \item Por departamento: Lambayeque \num{19.5}~min (\SI{8.1}{\percent} fuera),
+        Apur\'imac \num{35.9}~min (\SI{25.4}{\percent}), Amazonas
+        \num{61.3}~min (\SI{34.2}{\percent}).
+  \item Tercil de altitud (bajo/medio/alto): \numlist{25.2;39.9;57.4}~min.
   \item \textbf{Cuartil de pobreza distrital}: del menos al m\'as pobre,
-        \SIlist{15.5;47.0;58.1;113.2}{min}. Correlaci\'on de $t_i$ con \% de
+        \numlist{15.5;47.0;58.1;113.2}~min. Correlaci\'on de $t_i$ con \% de
         pobreza $r=\num{0.35}$; con IDH $r=\num{-0.38}$.
-  \item Comparaci\'on de perfiles: \SI{30.9}{min} en coche frente a
-        \SI{393}{min} a pie (media ponderada) --- caminar no es una alternativa
+  \item Comparaci\'on de perfiles: \num{30.9}~min en coche frente a
+        \num{393}~min a pie (media ponderada) --- caminar no es una alternativa
         viable para la emergencia en este territorio.
 \end{itemize}
 
