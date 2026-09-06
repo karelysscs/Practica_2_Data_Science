@@ -1,10 +1,10 @@
 ,registros,porcentaje
-qc_duplicado_espacial,346,20.19
-qc_no_activo,237,13.83
-qc_categoria_invalida,228,13.3
-qc_coord_faltante,197,11.49
-qc_isla_cero,1,0.06
-qc_fuera_de_peru,1,0.06
+qc_categoria_invalida,629,24.67
+qc_coord_faltante,615,24.12
+qc_no_activo,507,19.88
+qc_duplicado_espacial,475,18.63
+qc_isla_cero,1,0.04
+qc_fuera_de_peru,1,0.04
 qc_duplicado_codigo,0,0.0
 qc_depto_fuera_ambito,0,0.0
 qc_latlon_invertida,0,0.0

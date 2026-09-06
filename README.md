@@ -2,7 +2,7 @@
 
 Análisis geoespacial del tiempo de viaje por carretera de la población hacia
 establecimientos de salud **resolutivos** (categoría II-1 o superior) en tres
-departamentos que representan costa, sierra y selva: **Tumbes, Apurímac y
+departamentos que representan costa, sierra y selva: **Lambayeque, Apurímac y
 Amazonas**. Basado en el concepto de la *hora dorada* en medicina de emergencia.
 
 > Enunciado: `d2cml-ai/Data-Science-Python` issue #186 · Entrega: **2026-09-09**
@@ -41,7 +41,7 @@ Descarga manual (detalle y enlaces en [`docs/DATA_SOURCES.md`](docs/DATA_SOURCES
 | Ruta | Fuente | Contenido |
 |------|--------|-----------|
 | `data/raw/renipress.csv` | SUSALUD — RENIPRESS (Ago 2026) | oferta: establecimientos + categoría + coords |
-| `data/raw/cpp_población/cpp_{tumbes,apurimac,amazonas}/*.shp` | geogpsperu — CCPP Censo 2017 | demanda: población + altitud + coords |
+| `data/raw/cpp_población/cpp_{lambayeque,apurimac,amazonas}/*.shp` | geogpsperu — CCPP Censo 2017 | demanda: población + altitud + coords |
 
 Los límites distritales (`data/raw/peru_distritos.geojson`) se descargan solos en
 la Fase 3. El ruteo usa el OSRM público (`router.project-osrm.org`), sin descarga.

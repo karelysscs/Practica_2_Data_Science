@@ -8,26 +8,26 @@ Para cambiar el ámbito de estudio, edita únicamente este archivo.
 
 ## Ámbito geográfico seleccionado
 
-| Región      | Departamento | UBIGEO (dpto.) | Justificación                                  |
-|-------------|--------------|----------------|-----------------------------------------------|
-| Costa       | Tumbes       | 24             | Departamento costeño pequeño, red vial densa. |
-| Sierra      | Apurímac     | 03             | Andino, orografía marcada, alta ruralidad.    |
-| Selva       | Amazonas     | 01             | Amazónico, baja densidad vial (casos sin ruta).|
+| Región      | Departamento | UBIGEO (dpto.) | Justificación                                     |
+|-------------|--------------|----------------|--------------------------------------------------|
+| Costa       | Lambayeque   | 14             | Costa norte, gradiente costa–sierra (5–3600 msnm), Chiclayo metropolitano + interior rural. |
+| Sierra      | Apurímac     | 03             | Andino, orografía marcada, alta ruralidad.        |
+| Selva       | Amazonas     | 01             | Amazónico, baja densidad vial (casos sin ruta).  |
 
 ```yaml
 # ------------------------------------------------------------------
 # Ámbito geográfico
 # ------------------------------------------------------------------
 departments:
-  coast:  "TUMBES"
+  coast:  "LAMBAYEQUE"
   andes:  "APURIMAC"
   amazon: "AMAZONAS"
 
 # UBIGEO de nivel departamento (2 dígitos) para filtrar padrones y shapefiles
 department_ubigeo:
-  TUMBES:   "24"
-  APURIMAC: "03"
-  AMAZONAS: "01"
+  LAMBAYEQUE: "14"
+  APURIMAC:   "03"
+  AMAZONAS:   "01"
 
 # ------------------------------------------------------------------
 # Oferta: establecimientos de salud (RENIPRESS)

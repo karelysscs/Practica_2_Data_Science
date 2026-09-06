@@ -1,15 +1,23 @@
 # Fuentes de datos — qué descargar y dónde ponerlo
 
-> Ámbito: **Tumbes, Apurímac y Amazonas**. Igual conviene bajar los padrones
-> **nacionales** y filtrar por código de departamento en la Fase 1.
+> Ámbito: **Lambayeque (costa), Apurímac (sierra) y Amazonas (selva)**.
+> Los padrones nacionales se filtran por código de departamento en la Fase 1.
+>
+> _Nota:_ inicialmente se eligió **Tumbes** como departamento de costa, pero la
+> capa de centros poblados de geogpsperu para Tumbes llega **sin `CODIGO` ni
+> `POBLACION`** (ambas capas, «Categorías» y «Urbano y Rural»). Se cambió a
+> Lambayeque, cuya capa sí trae población a nivel de centro poblado. El código
+> de imputación (reparto de población distrital por categoría) se conserva en
+> `phase3_metrics.py` como salvaguarda.
 
 ## Reparto de trabajo
 
 | # | Dato | Estado | Archivo destino |
 |---|------|--------|-----------------|
 | 1 | RENIPRESS — Agosto 2026 (establecimientos + categoría + coords) | ✅ descargado | `data/raw/renipress.csv` |
-| 2 | **geogpsperu CCPP Censo 2017** — centros poblados con `POBLACION`, `ALTITUD`, `CATEGORIA`, `REGION_NAT`, coords | ✅ descargado (fuente **primaria** de demanda) | `data/raw/cpp_población/cpp_{tumbes,apurimac,amazonas}/*.shp` |
-| 3 | SIGMED `CP_P.shp` — centros poblados (respaldo; sin población) | ✅ descargado (no usado) | `data/raw/centros_poblados/CP_P.*` |
+| 2 | **geogpsperu CCPP Censo 2017** — centros poblados con `POBLACION`, `ALTITUD`, `CATEGORIA`, `REGION_NAT`, coords | ✅ descargado (fuente **primaria** de demanda) | `data/raw/cpp_población/cpp_{lambayeque,apurimac,amazonas}/*.shp` |
+| 3 | Contexto distrital: pobreza, IDH, densidad (INEI/PNUD) | ✅ automático — `phase3` lo descarga | `data/raw/ubigeo_distrito.csv` |
+| 4 | SIGMED `CP_P.shp` — centros poblados (respaldo; sin población) | ✅ descargado (no usado) | `data/raw/centros_poblados/CP_P.*` |
 | 4 | Límites distritales (GeoJSON, límites INEI) | ✅ automático — `phase3` lo descarga | `data/raw/peru_distritos.geojson` |
 | 5 | Ruteo: **OSRM público** (`router.project-osrm.org`) | ✅ sin descarga | caché `data/processed/route_cache.sqlite` |
 | 6 | `peru-latest.osm.pbf` (solo motor `osmnx` local) | opcional — no necesario | `data/raw/peru-latest.osm.pbf` |

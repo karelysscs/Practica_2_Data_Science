@@ -73,7 +73,9 @@ except FileNotFoundError as exc:
                "python -m src.phase3_metrics`")
     st.stop()
 
-drive = matrix[matrix["profile"] == "driving"].copy()
+ccpp = ccpp.drop_duplicates("ccpp_id").reset_index(drop=True)
+drive = (matrix[matrix["profile"] == "driving"]
+         .drop_duplicates(["ccpp_id", "facility_id"]).copy())
 pop = ccpp.set_index("ccpp_id")["poblacion"] if "poblacion" in ccpp else None
 tcol = "min_driving" if "min_driving" in ccpp.columns else "min_" + summary["perfil_primario"]
 
@@ -149,7 +151,7 @@ with left:
         import folium
         from streamlit_folium import st_folium
         gg = gdf.merge(dmet, on="ubigeo_distrito", how="left")
-        m = folium.Map(location=[-6.5, -77.5], zoom_start=6, tiles="cartodbpositron")
+        m = folium.Map(location=[-6.5, -78.0], zoom_start=6, tiles="OpenStreetMap")
         folium.Choropleth(
             geo_data=gg.to_json(), data=gg, columns=["ubigeo_distrito", "acceso_min"],
             key_on="feature.properties.ubigeo_distrito", fill_color="YlOrRd",

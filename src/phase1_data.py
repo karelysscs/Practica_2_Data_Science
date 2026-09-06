@@ -357,18 +357,27 @@ def load_demand() -> pd.DataFrame:
     parts = []
     for p in files:
         d = _resolve_aliases(snake_columns(_read_any(p)))
-        # descartar archivos defectuosos (p. ej. geogpsperu Tumbes: CODIGO="0",
-        # POBLACION=0 en todas las filas)
-        bad_code = "codigo" in d and (d["codigo"].astype(str).str.fullmatch(r"0+").mean() > 0.9)
-        bad_pop = "poblacion" in d and pd.to_numeric(d["poblacion"], errors="coerce").fillna(0).eq(0).mean() > 0.95
-        if bad_code or bad_pop:
-            log.warning("Padrón DEFECTUOSO ignorado (%s): %s",
-                        "códigos nulos" if bad_code else "población toda cero", p)
-            continue
+        # Algunos archivos de geogpsperu (caso real: Tumbes) llegan SIN código ni
+        # población pero con geometría, nombre, categoría y ubigeo válidos.
+        # No se descartan: se conserva la geometría y se sintetiza un código;
+        # la población se imputará en la Fase 3 a partir del total distrital.
+        no_code = "codigo" in d and d["codigo"].astype(str).str.fullmatch(r"0*").mean() > 0.9
+        no_pop = ("poblacion" not in d or
+                  pd.to_numeric(d["poblacion"], errors="coerce").fillna(0).eq(0).mean() > 0.95)
+        if no_code or no_pop:
+            log.warning("Padrón SIN código/población (se imputará): %s", p.name)
+            d["_imputar_poblacion"] = True
+            if "ubigeo" in d.columns:
+                d["codigo"] = (d["ubigeo"].astype(str).str.zfill(6)
+                               + "_" + (d.groupby(d["ubigeo"]).cumcount() + 1).astype(str).str.zfill(4))
+            if "poblacion" in d.columns:
+                d["poblacion"] = pd.to_numeric(d["poblacion"], errors="coerce").replace(0, pd.NA)
+        else:
+            d["_imputar_poblacion"] = False
         parts.append(d)
     if not parts:
-        raise FileNotFoundError("Todos los padrones de CCPP encontrados están defectuosos. "
-                                "Re-descargar (ver docs/DATA_SOURCES.md).")
+        raise FileNotFoundError("No se encontró ningún padrón de CCPP legible. "
+                                "Ver docs/DATA_SOURCES.md.")
     common = set.intersection(*(set(p.columns) for p in parts))
     df = pd.concat([p[sorted(common)] for p in parts], ignore_index=True)
 

@@ -34,6 +34,32 @@ PRIMARY = "driving" if "driving" in CFG["routing"]["profiles"] else CFG["routing
 _DISTRICTS_RAW = "peru_distritos.geojson"
 _DISTRICTS_URL = ("https://raw.githubusercontent.com/juaneladio/peru-geojson/"
                   "master/peru_distrital_simple.geojson")
+_UBIGEO_CSV = "ubigeo_distrito.csv"
+_UBIGEO_URL = ("https://raw.githubusercontent.com/jmcastagnetto/"
+               "ubigeo-peru-aumentado/main/ubigeo_distrito.csv")
+
+# Peso relativo por categoría de centro poblado, para repartir población
+# distrital cuando el padrón no la trae a nivel CCPP (caso Tumbes).
+_CAT_WEIGHT = {"CIUDAD": 120, "PUEBLO": 25, "VILLA": 40, "CASERIO": 6,
+               "ANEXO": 4, "UNIDAD AGROPECUARIA": 1, "OTROS": 2}
+_CAT_DEFAULT = 4
+
+
+def load_district_context() -> pd.DataFrame:
+    """Contexto distrital: población estimada (densidad 2020 × superficie),
+    pobreza e IDH. Fuente: repo ubigeo-peru-aumentado (INEI/PNUD)."""
+    path = get_path("raw") / _UBIGEO_CSV
+    if not path.exists():
+        import requests
+        log.info("Descargando contexto distrital: %s", _UBIGEO_URL)
+        path.write_bytes(requests.get(_UBIGEO_URL, timeout=60).content)
+    d = pd.read_csv(path, dtype={"inei": str})
+    d = d.rename(columns={"inei": "ubigeo_distrito"})
+    d["ubigeo_distrito"] = d["ubigeo_distrito"].str.zfill(6)
+    d["poblacion_est"] = (pd.to_numeric(d["pob_densidad_2020"], errors="coerce")
+                          * pd.to_numeric(d["superficie"], errors="coerce"))
+    return d[["ubigeo_distrito", "poblacion_est", "pct_pobreza_total",
+             "pct_pobreza_extrema", "idh_2019"]]
 
 
 def load_districts():
@@ -119,15 +145,40 @@ def build() -> None:
 
     acc = _min_access(matrix)
     df = dem.merge(acc, on="ccpp_id", how="left")
+    df["ubigeo_distrito"] = df["ubigeo"].astype(str).str.replace(r"\D", "", regex=True).str.zfill(6)
+
+    # --- contexto distrital (población estimada, pobreza, IDH) ---
+    ctx = load_district_context()
+    df = df.merge(ctx, on="ubigeo_distrito", how="left")
 
     tcol = f"min_{PRIMARY}"
-    if "poblacion" not in df or df["poblacion"].isna().all():
-        log.warning("Sin población: métricas con PESO UNIFORME (pendiente descarga).")
+    df["poblacion"] = pd.to_numeric(df.get("poblacion"), errors="coerce")
+
+    # --- imputación de población para CCPP sin dato (p. ej. Tumbes) ---
+    need = df["poblacion"].isna()
+    if need.any():
+        cat = df.get("categoria", pd.Series(index=df.index, dtype=object)).fillna("").str.upper()
+        wcat = cat.map(_CAT_WEIGHT).fillna(_CAT_DEFAULT)
+        # población distrital aún no explicada por CCPP con dato
+        known = df.loc[~need].groupby("ubigeo_distrito")["poblacion"].sum()
+        for dist_id, g in df.loc[need].groupby("ubigeo_distrito"):
+            total = df["poblacion_est"].loc[g.index].iloc[0]
+            if not np.isfinite(total):
+                continue
+            resto = max(total - float(known.get(dist_id, 0.0)), 0.0)
+            share = wcat.loc[g.index]
+            df.loc[g.index, "poblacion"] = resto * (share / share.sum())
+        n_imp = int(need.sum())
+        log.warning("Población imputada en %d CCPP (%.0f hab.) por reparto distrital "
+                    "ponderado por categoría.", n_imp, df.loc[need, "poblacion"].sum())
+    df["poblacion_imputada"] = need
+
+    pop_ok = df["poblacion"].notna().any()
+    if not pop_ok:
+        log.warning("Sin población: métricas con PESO UNIFORME.")
         df["poblacion"] = 1.0
-        pop_ok = False
     else:
-        df["poblacion"] = df["poblacion"].fillna(df["poblacion"].median())
-        pop_ok = True
+        df["poblacion"] = df["poblacion"].fillna(0.0)
     w = df["poblacion"]
 
     # --- altitud: terciles (dimensión secundaria) ---
@@ -137,9 +188,19 @@ def build() -> None:
     else:
         df["altitud_tercil"] = pd.NA
 
-    # --- distrito ---
-    df["ubigeo_distrito"] = df["ubigeo"].astype(str).str.replace(r"\D", "", regex=True).str.zfill(6)
     dep_col = "departamento" if "departamento" in df.columns else "dep"
+
+    def _pct_out(g):
+        gw = g["poblacion"]
+        return round(float(gw[g[tcol] > GOLDEN].sum() / gw.sum()) * 100, 2) if gw.sum() else float("nan")
+
+    # cuartiles de pobreza distrital (dimensión secundaria)
+    if df["pct_pobreza_total"].notna().any():
+        df["pobreza_cuartil"] = pd.qcut(df["pct_pobreza_total"], 4,
+                                        labels=["Q1 (menos pobre)", "Q2", "Q3", "Q4 (más pobre)"],
+                                        duplicates="drop")
+    else:
+        df["pobreza_cuartil"] = pd.NA
 
     summary = {
         "perfil_primario": PRIMARY,
@@ -157,8 +218,7 @@ def build() -> None:
             str(k): {
                 "n_ccpp": int(len(g)),
                 "acceso_min_medio": round(wmean(g[tcol], g["poblacion"]), 2),
-                "pct_fuera_hora_dorada": round(
-                    float(g["poblacion"][g[tcol] > GOLDEN].sum() / g["poblacion"].sum()) * 100, 2),
+                "pct_fuera_hora_dorada": _pct_out(g),
             }
             for k, g in df.groupby(dep_col)
         },
@@ -170,6 +230,15 @@ def build() -> None:
             str(k): round(wmean(g[tcol], g["poblacion"]), 2)
             for k, g in df.groupby("altitud_tercil", observed=True)
         },
+        "acceso_por_cuartil_pobreza": {
+            str(k): round(wmean(g[tcol], g["poblacion"]), 2)
+            for k, g in df.groupby("pobreza_cuartil", observed=True)
+        },
+        "correlacion_acceso_pobreza": round(
+            float(df[[tcol, "pct_pobreza_total"]].dropna().corr().iloc[0, 1]), 3),
+        "correlacion_acceso_idh": round(
+            float(df[[tcol, "idh_2019"]].dropna().corr().iloc[0, 1]), 3),
+        "poblacion_imputada_pct": round(float(df["poblacion_imputada"].mean()) * 100, 1),
     }
     if {"min_driving", "min_walking"} <= set(df.columns):
         summary["driving_vs_walking_min_medio"] = {
@@ -183,11 +252,15 @@ def build() -> None:
         return pd.Series({
             dep_col: g[dep_col].iloc[0],
             "n_ccpp": len(g),
-            "poblacion": float(gw.sum()) if pop_ok else np.nan,
+            "poblacion": round(float(gw.sum()), 0),
             "acceso_min_ponderado": round(wmean(g[tcol], gw), 2),
-            "pct_fuera_hora_dorada": round(
-                float(gw[g[tcol] > GOLDEN].sum() / gw.sum()) * 100, 2),
+            "pct_fuera_hora_dorada": _pct_out(g),
             "gini_acceso": round(gini(g[tcol], gw), 4),
+            "pct_pobreza_total": round(float(g["pct_pobreza_total"].iloc[0]), 2)
+            if g["pct_pobreza_total"].notna().any() else np.nan,
+            "idh_2019": round(float(g["idh_2019"].iloc[0]), 3)
+            if g["idh_2019"].notna().any() else np.nan,
+            "poblacion_imputada": bool(g["poblacion_imputada"].any()),
         })
 
     dist = df.groupby("ubigeo_distrito").apply(_agg, include_groups=False).reset_index()
