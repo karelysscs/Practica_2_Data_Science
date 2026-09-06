@@ -52,9 +52,9 @@ RENIPRESS_MAP = {
 # Posibles nombres de columnas en padrones de centros poblados
 # (SIGMED CP_P.shp / INEI cartografía censal / geogpsperu)
 DEMAND_ALIASES = {
-    "codigo":       ["codcp", "cod_ccpp", "codccpp", "id_ccpp", "ccpp", "codigo_ccpp", "cod_cp", "cod_cp_"],
+    "codigo":       ["codigo", "codcp", "cod_ccpp", "codccpp", "id_ccpp", "ccpp", "codigo_ccpp", "cod_cp"],
     "cod_inei":     ["cpinei", "codccpp_inei", "cod_ccpp_inei", "ccpp_inei", "id_ccpp_inei"],
-    "nombre":       ["nomcp", "nomccpp", "nom_ccpp", "nombre_ccpp", "nombre", "nom_cp", "centro_poblado"],
+    "nombre":       ["descripcio", "nomcp", "nomccpp", "nom_ccpp", "nombre_ccpp", "nombre", "nom_cp", "centro_poblado"],
     "poblacion":    ["poblacion", "pob_total", "pobla", "poblac", "pob2017", "pob", "cant_pob",
                      "poblacen", "pobtotal", "pob_tot"],
     "viviendas":    ["viviendas", "viv_total", "vivienda", "viv", "vivtotal", "total_vivi"],
@@ -62,7 +62,9 @@ DEMAND_ALIASES = {
     "latitud":      ["latitud", "lat", "y", "coord_y", "ygd", "norte"],
     "longitud":     ["longitud", "long", "lon", "x", "coord_x", "xgd", "este"],
     "altitud":      ["altitud", "z", "elevacion", "msnm", "altura"],
-    "departamento": ["dep", "departamento", "dpto", "nombdep", "nom_dep"],
+    "categoria":    ["categoria", "categoria_", "cat_ccpp"],
+    "region_nat":   ["region_nat", "region_natural", "reg_nat"],
+    "departamento": ["departamen", "dep", "departamento", "dpto", "nombdep", "nom_dep"],
 }
 
 
@@ -265,24 +267,25 @@ def load_facilities() -> pd.DataFrame:
 _VECTOR_EXT = (".shp", ".gpkg", ".geojson", ".json")
 
 
-def _find_demand_file() -> Path:
-    """Busca el padrón principal de CCPP: primero shapefiles/vectores, luego CSV.
-    Ignora la carpeta de población auxiliar (``ccpp_poblacion``)."""
+# Carpetas candidatas para el padrón de demanda, en orden de preferencia.
+# geogpsperu (CPV 2017) trae población + altitud + región natural en la misma capa.
+_DEMAND_DIRS = ["*cpp_pobla*", "*ccpp_pobla*", "centros_poblados"]
+
+
+def _demand_files() -> list[Path]:
     raw = get_path("raw")
-    prefer = ["centros_poblados", "ccpp", "poblado"]
-    candidates: list[Path] = []
-    for ext in _VECTOR_EXT + (".csv",):
-        candidates += [p for p in raw.rglob(f"*{ext}") if "ccpp_poblacion" not in p.parts]
-    if not candidates:
-        raise FileNotFoundError(
-            "No se encontró el padrón de centros poblados en data/raw/. "
-            "Ver docs/DATA_SOURCES.md"
-        )
-    candidates.sort(key=lambda p: (
-        _VECTOR_EXT.index(p.suffix.lower()) if p.suffix.lower() in _VECTOR_EXT else 9,
-        0 if any(k in p.stem.lower() for k in prefer) else 1,
-    ))
-    return candidates[0]
+    for pat in _DEMAND_DIRS:
+        dirs = [d for d in raw.glob(pat) if d.is_dir()]
+        files = [p for d in dirs for ext in _VECTOR_EXT for p in d.rglob(f"*{ext}")]
+        if files:
+            return sorted(files)
+    loose = [p for ext in _VECTOR_EXT + (".csv",) for p in raw.glob(f"*{ext}")]
+    if loose:
+        return sorted(loose)
+    raise FileNotFoundError(
+        "No se encontró el padrón de centros poblados en data/raw/. "
+        "Ver docs/DATA_SOURCES.md"
+    )
 
 
 def _read_any(path: Path) -> pd.DataFrame:
@@ -348,9 +351,26 @@ def _load_population_lookup() -> pd.DataFrame | None:
 
 
 def load_demand() -> pd.DataFrame:
-    path = _find_demand_file()
-    log.info("Padrón de CCPP: %s", path)
-    df = _resolve_aliases(snake_columns(_read_any(path)))
+    files = _demand_files()
+    log.info("Padrón de CCPP: %d archivo(s) — %s",
+             len(files), ", ".join(p.parent.name + "/" + p.name for p in files))
+    parts = []
+    for p in files:
+        d = _resolve_aliases(snake_columns(_read_any(p)))
+        # descartar archivos defectuosos (p. ej. geogpsperu Tumbes: CODIGO="0",
+        # POBLACION=0 en todas las filas)
+        bad_code = "codigo" in d and (d["codigo"].astype(str).str.fullmatch(r"0+").mean() > 0.9)
+        bad_pop = "poblacion" in d and pd.to_numeric(d["poblacion"], errors="coerce").fillna(0).eq(0).mean() > 0.95
+        if bad_code or bad_pop:
+            log.warning("Padrón DEFECTUOSO ignorado (%s): %s",
+                        "códigos nulos" if bad_code else "población toda cero", p)
+            continue
+        parts.append(d)
+    if not parts:
+        raise FileNotFoundError("Todos los padrones de CCPP encontrados están defectuosos. "
+                                "Re-descargar (ver docs/DATA_SOURCES.md).")
+    common = set.intersection(*(set(p.columns) for p in parts))
+    df = pd.concat([p[sorted(common)] for p in parts], ignore_index=True)
 
     # coordenadas: usar columnas explícitas o, si no hay, las de la geometría
     if "latitud" not in df.columns and "_geom_lat" in df.columns:

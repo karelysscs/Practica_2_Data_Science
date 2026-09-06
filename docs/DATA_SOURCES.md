@@ -8,8 +8,8 @@
 | # | Dato | Estado | Archivo destino |
 |---|------|--------|-----------------|
 | 1 | RENIPRESS — Agosto 2026 (establecimientos + categoría + coords) | ✅ descargado | `data/raw/renipress.csv` |
-| 2 | SIGMED `CP_P.shp` — centros poblados (coords + altitud `Z`, **sin población**) | ✅ descargado | `data/raw/centros_poblados/CP_P.*` |
-| 3 | **Centros poblados con POBLACIÓN** (Censo 2017) | ⏳ pendiente — Karelys | `data/raw/ccpp_poblacion/` |
+| 2 | **geogpsperu CCPP Censo 2017** — centros poblados con `POBLACION`, `ALTITUD`, `CATEGORIA`, `REGION_NAT`, coords | ✅ descargado (fuente **primaria** de demanda) | `data/raw/cpp_población/cpp_{tumbes,apurimac,amazonas}/*.shp` |
+| 3 | SIGMED `CP_P.shp` — centros poblados (respaldo; sin población) | ✅ descargado (no usado) | `data/raw/centros_poblados/CP_P.*` |
 | 4 | Límites distritales (GeoJSON, límites INEI) | ✅ automático — `phase3` lo descarga | `data/raw/peru_distritos.geojson` |
 | 5 | Ruteo: **OSRM público** (`router.project-osrm.org`) | ✅ sin descarga | caché `data/processed/route_cache.sqlite` |
 | 6 | `peru-latest.osm.pbf` (solo motor `osmnx` local) | opcional — no necesario | `data/raw/peru-latest.osm.pbf` |
@@ -95,6 +95,8 @@ pública de OSRM o `osmnx`, no se usa y no pasa nada.
 ## Checklist para Karelys
 
 - [x] `data/raw/renipress.csv`
-- [x] `data/raw/centros_poblados/CP_P.*` (SIGMED)
-- [ ] `data/raw/ccpp_poblacion/` — centros poblados Censo 2017 **con población**
-- [ ] *(opcional, en segundo plano)* `data/raw/peru-latest.osm.pbf`
+- [x] `data/raw/centros_poblados/CP_P.*` (SIGMED — respaldo)
+- [x] `data/raw/cpp_población/` — centros poblados Censo 2017 **con población** (geogpsperu)
+- [ ] *(opcional)* `data/raw/poblacion_dispersa/` — población rural dispersa (bonus)
+
+**Descargas completas.** El pipeline corre de punta a punta con lo que hay.

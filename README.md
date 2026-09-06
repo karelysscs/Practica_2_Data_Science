@@ -14,45 +14,50 @@ config.md                 Parámetros del análisis (única fuente de verdad)
 requirements.txt
 src/
   config.py               Lee config.md
-  utils.py                Logging, geometría
+  utils.py                Logging, geometría (haversine)
   phase1_data.py          Adquisición + validación (reportes de calidad)
-  phase2_routing.py       Ruteo OSRM + caché + matriz O-D + fallback
-  phase3_metrics.py       Tiempo de acceso, bandas, Gini, urbano-rural
+  phase2_routing.py       Ruteo OSRM /table + caché SQLite + matriz O-D + fallback
+  phase3_metrics.py       Tiempo de acceso, bandas, Gini, urbano-rural, altitud
+  figures.py              Figuras (.png) y tablas (.tex) del informe
 app.py                    Dashboard Streamlit (Fase 4)
 report/main.tex           Informe LaTeX (Fase 5)
 data/raw|processed|outputs/
-reports/quality/          Reportes de calidad de datos
-docs/DATA_SOURCES.md      Qué descargar y dónde ponerlo
+reports/quality/          Reportes de calidad (oferta, demanda, ruteo)
+docs/DATA_SOURCES.md      Fuentes de datos y estado de descargas
 ```
 
 ## Instalación
 
 ```bash
 python -m venv .venv
-.venv\Scripts\activate      # Windows
+.venv\Scripts\activate      # Windows  (bash: source .venv/bin/activate)
 pip install -r requirements.txt
 ```
 
 ## Datos
 
-Descarga manual mínima (ver [`docs/DATA_SOURCES.md`](docs/DATA_SOURCES.md)):
+Descarga manual (detalle y enlaces en [`docs/DATA_SOURCES.md`](docs/DATA_SOURCES.md)):
 
-| Archivo | Fuente |
-|---------|--------|
-| `data/raw/renipress.csv` | SUSALUD — RENIPRESS |
-| `data/raw/centros_poblados.csv` | INEI / MINEDU SIGMED |
+| Ruta | Fuente | Contenido |
+|------|--------|-----------|
+| `data/raw/renipress.csv` | SUSALUD — RENIPRESS (Ago 2026) | oferta: establecimientos + categoría + coords |
+| `data/raw/cpp_población/cpp_{tumbes,apurimac,amazonas}/*.shp` | geogpsperu — CCPP Censo 2017 | demanda: población + altitud + coords |
+
+Los límites distritales (`data/raw/peru_distritos.geojson`) se descargan solos en
+la Fase 3. El ruteo usa el OSRM público (`router.project-osrm.org`), sin descarga.
 
 ## Ejecución
 
 ```bash
-python -m src.phase1_data       # valida y genera reports/quality/*
-python -m src.phase2_routing    # construye data/processed/od_matrix.parquet
-python -m src.phase3_metrics    # genera data/outputs/summary.json + métricas
-streamlit run app.py            # dashboard
+python -m src.phase1_data       # valida -> reports/quality/*.md + data/processed/*_validated.parquet
+python -m src.phase2_routing    # OSRM -> data/processed/od_matrix.parquet (+ caché reanudable)
+python -m src.phase3_metrics    # -> data/outputs/summary.json, metrics_*.parquet, metrics_distrito.gpkg
+python -m src.figures           # -> data/outputs/figs/*.png, data/outputs/tabs/*.tex
+streamlit run app.py            # dashboard interactivo
 ```
 
-La matriz O-D (`data/processed/od_matrix.parquet`) se versiona para que el
-dashboard funcione sin conexión.
+La matriz O-D (`data/processed/od_matrix.parquet`) y los resultados
+(`data/outputs/`) se versionan para que el dashboard funcione **sin conexión**.
 
 ## Fases y puntaje
 
