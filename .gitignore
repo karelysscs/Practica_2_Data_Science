@@ -47,3 +47,6 @@ cache/
 Thumbs.db
 .vscode/
 .idea/
+
+# Zip para subir a Overleaf (regenerable)
+report_overleaf.zip
