@@ -20,7 +20,7 @@ src/
   fase3_metricas.py       Fase 3 · Tiempo de acceso, bandas, Gini, urbano-rural, altitud
   fase5_figuras.py        Fase 5 · Figuras (.png) y tablas (.tex) del informe
 app.py                    Dashboard Streamlit (Fase 4)
-report/main.tex           Informe LaTeX (Fase 5)
+report/informe.tex        Informe LaTeX (Fase 5) + informe.pdf compilado
 data/raw|processed|outputs/
 reports/quality/          Reportes de calidad (oferta, demanda, ruteo)
 docs/DATA_SOURCES.md      Fuentes de datos y estado de descargas
