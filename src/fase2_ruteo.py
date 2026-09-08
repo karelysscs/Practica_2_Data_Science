@@ -35,7 +35,7 @@ import requests
 from src.config import CFG, get_path
 from src.utils import get_logger, haversine_m, timestamp
 
-log = get_logger("phase2")
+log = get_logger("fase2")
 
 R = CFG["routing"]
 _OSRM_MAX_COORDS = 100           # límite del servidor público

@@ -8,7 +8,7 @@
 > `POBLACION`** (ambas capas, «Categorías» y «Urbano y Rural»). Se cambió a
 > Lambayeque, cuya capa sí trae población a nivel de centro poblado. El código
 > de imputación (reparto de población distrital por categoría) se conserva en
-> `phase3_metrics.py` como salvaguarda.
+> `fase3_metricas.py` como salvaguarda.
 
 ## Reparto de trabajo
 
@@ -26,7 +26,7 @@
 > departamentos) se descartó: la descarga se subdivide en ~168 subconsultas y
 > Overpass agota el tiempo de espera. Se usa OSRM público, que cubre Perú con
 > ruta real en el 100 % de los pares y caché reanudable. El código del motor
-> `osmnx` queda en `src/phase2_routing.py` como alternativa documentada.
+> `osmnx` queda en `src/fase2_ruteo.py` como alternativa documentada.
 
 ### ⏳ Pendiente #3 — población por centro poblado
 

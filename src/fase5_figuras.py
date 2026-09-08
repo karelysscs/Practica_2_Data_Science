@@ -1,6 +1,6 @@
 """Genera las figuras y tablas del informe (Fase 5) a partir de data/outputs/.
 
-    python -m src.figures
+    python -m src.fase5_figuras
 
 Escribe PNG (300 dpi) y fragmentos .tex en data/outputs/figs/ y data/outputs/tabs/.
 """
@@ -17,7 +17,7 @@ import pandas as pd
 from src.config import CFG, get_path
 from src.utils import get_logger
 
-log = get_logger("figures")
+log = get_logger("fase5")
 
 GOLDEN = CFG["metrics"]["golden_hour_min"]
 BANDS = CFG["metrics"]["coverage_bands_min"]
@@ -129,7 +129,7 @@ def build() -> None:
         body = d.to_latex(index=False, escape=False, float_format=float_fmt,
                           column_format="l" + "r" * (d.shape[1] - 1))
         (tabs / name).write_text(
-            "% auto-generado por src/figures.py — no editar a mano\n"
+            "% auto-generado por src/fase5_figuras.py — no editar a mano\n"
             f"\\begin{{table}}[htbp]\\centering\n\\caption{{{caption}}}\\label{{{label}}}\n"
             f"{body}\\end{{table}}\n", encoding="utf-8")
 

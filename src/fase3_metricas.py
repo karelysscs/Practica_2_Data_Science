@@ -24,7 +24,7 @@ import pandas as pd
 from src.config import CFG, get_path
 from src.utils import get_logger
 
-log = get_logger("phase3")
+log = get_logger("fase3")
 
 M = CFG["metrics"]
 BANDS = M["coverage_bands_min"]

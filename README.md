@@ -13,12 +13,12 @@ Amazonas**. Basado en el concepto de la *hora dorada* en medicina de emergencia.
 config.md                 Parámetros del análisis (única fuente de verdad)
 requirements.txt
 src/
-  config.py               Lee config.md
-  utils.py                Logging, geometría (haversine)
-  phase1_data.py          Adquisición + validación (reportes de calidad)
-  phase2_routing.py       Ruteo OSRM /table + caché SQLite + matriz O-D + fallback
-  phase3_metrics.py       Tiempo de acceso, bandas, Gini, urbano-rural, altitud
-  figures.py              Figuras (.png) y tablas (.tex) del informe
+  config.py               Lee config.md (compartido)
+  utils.py                Logging, geometría (haversine) (compartido)
+  fase1_datos.py          Fase 1 · Adquisición + validación (reportes de calidad)
+  fase2_ruteo.py          Fase 2 · Ruteo OSRM /table + caché SQLite + matriz O-D + fallback
+  fase3_metricas.py       Fase 3 · Tiempo de acceso, bandas, Gini, urbano-rural, altitud
+  fase5_figuras.py        Fase 5 · Figuras (.png) y tablas (.tex) del informe
 app.py                    Dashboard Streamlit (Fase 4)
 report/main.tex           Informe LaTeX (Fase 5)
 data/raw|processed|outputs/
@@ -49,10 +49,10 @@ la Fase 3. El ruteo usa el OSRM público (`router.project-osrm.org`), sin descar
 ## Ejecución
 
 ```bash
-python -m src.phase1_data       # valida -> reports/quality/*.md + data/processed/*_validated.parquet
-python -m src.phase2_routing    # OSRM -> data/processed/od_matrix.parquet (+ caché reanudable)
-python -m src.phase3_metrics    # -> data/outputs/summary.json, metrics_*.parquet, metrics_distrito.gpkg
-python -m src.figures           # -> data/outputs/figs/*.png, data/outputs/tabs/*.tex
+python -m src.fase1_datos       # valida -> reports/quality/*.md + data/processed/*_validated.parquet
+python -m src.fase2_ruteo       # OSRM -> data/processed/od_matrix.parquet (+ caché reanudable)
+python -m src.fase3_metricas    # -> data/outputs/summary.json, metrics_*.parquet, metrics_distrito.gpkg
+python -m src.fase5_figuras     # -> data/outputs/figs/*.png, data/outputs/tabs/*.tex
 streamlit run app.py            # dashboard interactivo
 ```
 

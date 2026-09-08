@@ -382,10 +382,10 @@ Todos los par\'ametros (departamentos, categor\'ias resolutivas, umbrales,
 bandas) se declaran en \texttt{config.md}; el c\'odigo de \texttt{src/} no
 contiene valores fijados. Ejecutar en orden:
 \begin{verbatim}
-python -m src.phase1_data      # validacion + reportes de calidad
-python -m src.phase2_routing   # matriz O-D via OSRM (cache reanudable)
-python -m src.phase3_metrics   # metricas, Gini, cruces, GeoPackage
-python -m src.figures          # figuras .png y tablas .tex
+python -m src.fase1_datos      # validacion + reportes de calidad
+python -m src.fase2_ruteo      # matriz O-D via OSRM (cache reanudable)
+python -m src.fase3_metricas   # metricas, Gini, cruces, GeoPackage
+python -m src.fase5_figuras    # figuras .png y tablas .tex
 streamlit run app.py           # panel interactivo
 \end{verbatim}
 

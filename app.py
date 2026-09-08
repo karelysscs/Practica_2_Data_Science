@@ -69,8 +69,8 @@ try:
     ccpp, dist, summary, matrix, fac, gdf = load()
 except FileNotFoundError as exc:
     st.warning(f"Faltan resultados ({exc}). Ejecuta las fases 1–3:\n\n"
-               "`python -m src.phase1_data && python -m src.phase2_routing && "
-               "python -m src.phase3_metrics`")
+               "`python -m src.fase1_datos && python -m src.fase2_ruteo && "
+               "python -m src.fase3_metricas`")
     st.stop()
 
 ccpp = ccpp.drop_duplicates("ccpp_id").reset_index(drop=True)

@@ -10,7 +10,7 @@ se marca con banderas ``qc_*`` y se documenta en un reporte de calidad
 por ``qc_ok`` pero los registros marcados quedan versionados para trazabilidad.
 
 Uso:
-    python -m src.phase1_data
+    python -m src.fase1_datos
 """
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ try:  # geopandas es opcional hasta que haga falta leer shapefiles
 except ImportError:  # pragma: no cover
     gpd = None
 
-log = get_logger("phase1")
+log = get_logger("fase1")
 
 V = CFG["validation"]
 LON_MIN, LAT_MIN, LON_MAX, LAT_MAX = V["peru_bbox"]
