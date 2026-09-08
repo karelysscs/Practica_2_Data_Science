@@ -58,7 +58,7 @@ def build() -> None:
     fig, ax = plt.subplots(figsize=(5.4, 3.2))
     ax.hist(t.clip(upper=240), bins=40, color=INK, alpha=0.85)
     ax.axvline(GOLDEN, color=ACCENT, ls="--", lw=1.5, label=f"Hora dorada ({GOLDEN} min)")
-    ax.set_xlabel("Tiempo al hospital resolutivo más cercano (min, en coche)")
+    ax.set_xlabel("Tiempo al establecimiento de salud resolutivo más cercano (min, coche)")
     ax.set_ylabel("N.º de centros poblados")
     ax.set_title("Distribución del tiempo de acceso")
     ax.legend(frameon=False)
@@ -108,7 +108,7 @@ def build() -> None:
         g.plot(column=col, cmap="YlOrRd", legend=True, ax=ax,
                edgecolor="white", linewidth=0.3,
                missing_kwds={"color": "lightgray"},
-               legend_kwds={"label": "Minutos al hospital resolutivo", "shrink": 0.6})
+               legend_kwds={"label": "Minutos al establecimiento resolutivo", "shrink": 0.6})
         ax.set_axis_off()
         ax.set_title("Tiempo de acceso por distrito", fontweight="bold")
         fig.savefig(figs / "fig_choropleth.png", bbox_inches="tight"); plt.close(fig)
