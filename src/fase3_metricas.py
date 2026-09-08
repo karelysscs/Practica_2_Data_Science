@@ -265,6 +265,15 @@ def build() -> None:
 
     dist = df.groupby("ubigeo_distrito").apply(_agg, include_groups=False).reset_index()
 
+    # nombres de provincia y distrito (desde el padrón de CCPP)
+    if {"provincia", "distrito"} <= set(df.columns):
+        nombres = (df.groupby("ubigeo_distrito")[["provincia", "distrito"]]
+                     .agg(lambda s: s.mode().iat[0] if not s.mode().empty else s.iloc[0])
+                     .reset_index())
+        dist = nombres.merge(dist, on="ubigeo_distrito", how="right")
+        cols = ["ubigeo_distrito", dep_col, "provincia", "distrito"]
+        dist = dist[cols + [c for c in dist.columns if c not in cols]]
+
     df.to_parquet(out / "metrics_ccpp.parquet", index=False)
     dist.to_parquet(out / "metrics_distrito.parquet", index=False)
     (out / "summary.json").write_text(

@@ -126,8 +126,9 @@ def build() -> None:
         for c in d.columns:
             if not pd.api.types.is_numeric_dtype(d[c]):
                 d[c] = d[c].map(lambda x: _clean(str(x)))
+        colfmt = "".join("r" if pd.api.types.is_numeric_dtype(d[c]) else "l" for c in d.columns)
         body = d.to_latex(index=False, escape=False, float_format=float_fmt,
-                          column_format="l" + "r" * (d.shape[1] - 1))
+                          column_format=colfmt)
         (tabs / name).write_text(
             "% auto-generado por src/fase5_figuras.py — no editar a mano\n"
             f"\\begin{{table}}[htbp]\\centering\n\\caption{{{caption}}}\\label{{{label}}}\n"
@@ -147,10 +148,11 @@ def build() -> None:
          "Resumen por departamento: tiempo medio de acceso ponderado por poblaci\\'on "
          "y poblaci\\'on fuera de la hora dorada.", "tab:departamento")
 
-    peores = (dist.sort_values("acceso_min_ponderado", ascending=False)
-              .head(10)[["ubigeo_distrito", dep_col, "n_ccpp", "acceso_min_ponderado",
-                         "pct_fuera_hora_dorada", "gini_acceso", "pct_pobreza_total"]]
-              .rename(columns={"ubigeo_distrito": "UBIGEO", dep_col: "Depto.",
+    _pcols = [c for c in ["provincia", "distrito", "n_ccpp", "acceso_min_ponderado",
+                          "pct_fuera_hora_dorada", "gini_acceso", "pct_pobreza_total"]
+              if c in dist.columns]
+    peores = (dist.sort_values("acceso_min_ponderado", ascending=False).head(10)[_pcols]
+              .rename(columns={"provincia": "Provincia", "distrito": "Distrito",
                                "n_ccpp": "CCPP", "acceso_min_ponderado": "Acceso (min)",
                                "pct_fuera_hora_dorada": "Fuera HD (\\%)",
                                "gini_acceso": "Gini", "pct_pobreza_total": "Pobreza (\\%)"}))

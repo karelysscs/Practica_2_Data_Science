@@ -264,8 +264,9 @@ with e4:
 st.divider()
 st.subheader("Distritos con peor acceso")
 tbl = dmet.merge(dist, on="ubigeo_distrito", how="left").sort_values("acceso_min", ascending=False)
-show = [c for c in ["ubigeo_distrito", "departamento", "n_ccpp", "poblacion", "acceso_min",
-                    "pct_fuera_hora_dorada", "gini_acceso", "pct_pobreza_total"] if c in tbl.columns]
+show = [c for c in ["ubigeo_distrito", "departamento", "provincia", "distrito", "n_ccpp",
+                    "poblacion", "acceso_min", "pct_fuera_hora_dorada", "gini_acceso",
+                    "pct_pobreza_total"] if c in tbl.columns]
 st.dataframe(tbl[show].head(20), hide_index=True, width='stretch')
 
 # ------------------------------------------------------------------ quality
